@@ -1,0 +1,13 @@
+name: rofiat_mayo_analytics
+
+version: 1.0.0
+
+profile: my-snowflake-db
+
+model-paths: [dbt_proj/models]
+
+
+models:
+  rofiat_mayo_analytics:
+    silver:
+      +materialized: table
