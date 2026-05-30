@@ -1,4 +1,5 @@
 select 
     1 as age,
     'mayowa' as name,
-    'berlinn' as city
+    'berlin' as city,
+    'football' as team
