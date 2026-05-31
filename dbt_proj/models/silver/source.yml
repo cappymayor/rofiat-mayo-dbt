@@ -1,0 +1,11 @@
+version: 2
+
+sources:
+  - name: ecommerce
+    database: mayo_prod_db
+    schema: bronze
+    tables:
+      - name: customers
+      - name: products
+      - name: orders
+      - name: payments
