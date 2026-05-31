@@ -10,5 +10,9 @@ model-paths: [dbt_proj/models]
 models:
   rofiat_mayo_analytics:
     silver:
-      +schema: prod_custom
+      +schema: silver
+      +materialized: table
+
+    gold:
+      +schema: gold
       +materialized: table
