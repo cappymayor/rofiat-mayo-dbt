@@ -4,7 +4,7 @@ select
     o.ordered_at,
     o.order_status,
     p.product_name,
-    p.category as product_category,
+    p.category as product_categories,
     o.quantity,
     (o.quantity * p.price)::number(10,2) as gross_revenue,
     case 
