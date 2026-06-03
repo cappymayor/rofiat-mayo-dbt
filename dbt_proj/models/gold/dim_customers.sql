@@ -1,7 +1,7 @@
 with customer_orders as (
     select
         customer_id,
-        min(ordered_at) as first_order_date,
+        min(ordered_at) as first_order_datessssss,
         max(ordered_at) as most_recent_order_date,
         count(distinct order_id) as total_orders,
         sum(net_revenue) as lifetime_value
@@ -17,7 +17,7 @@ select
     c.customer_signup_at,
     coalesce(co.total_orders, 0) as total_orders,
     coalesce(co.lifetime_value, 0.00)::number(10,2) as lifetime_value,
-    co.first_order_date,
+    co.first_order_datessssss,
     co.most_recent_order_date,
     case 
         when co.total_orders > 0 then true 
