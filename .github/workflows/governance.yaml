@@ -1,0 +1,43 @@
+name: Data Governance - Block Raw Access
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '**.sql'
+
+jobs:
+  check-raw-layer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan for Raw References
+        run: |
+          # Get all added or modified SQL files in this PR
+          CHANGED_FILES=$(git diff --name-only --diff-filter=AM origin/${{ github.base_ref }}...HEAD | grep '\.sql$' || true)
+
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No SQL files modified in this PR."
+            exit 0
+          fi
+
+          echo "Scanning changed SQL files..."
+          
+          # Regex checks for:
+          # 1. Direct table calls: raw.orders
+          # 2. dbt source calls: source('raw', ... or source("raw", ...
+          ERRORS=$(grep -iEn "raw\.|source\(['\"]raw['\"]" $CHANGED_FILES || true)
+
+          if [ -n "$ERRORS" ]; then
+            echo "❌ ERROR: PR contains forbidden references to the RAW layer:"
+            echo "$ERRORS"
+            echo ""
+            echo "Please remove references to raw tables and use staging/intermediate models instead."
+            exit 1
+          else
+            echo "✅ Pass: No RAW layer references found."
+          fi
