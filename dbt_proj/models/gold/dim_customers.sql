@@ -23,5 +23,5 @@ select
         when co.total_orders > 0 then true 
         else false 
     end as is_active_customer
-from new.order c
+from raw.order c
 left join customer_orders co on c.customer_id = co.customer_id
