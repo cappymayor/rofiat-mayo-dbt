@@ -3,7 +3,7 @@ with customer_orders as (
         customer_id,
         min(ordered_at) as first_order_date,
         max(ordered_at) as most_recent_order_date,
-        count(distinct order_id) as total_orders,
+        count(distinct order_id) as total_order,
         sum(net_revenue) as lifetime_value
     from {{ ref('stg_fct_orders') }}
     group by 1
