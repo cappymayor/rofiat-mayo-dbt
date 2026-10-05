@@ -4,7 +4,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
-      - 'dbt_project/models/marts/**/*.sql'
+      - 'dbt_project/models/gold/**/*.sql'
 
 jobs:
   check-forbidden-marts-references:
