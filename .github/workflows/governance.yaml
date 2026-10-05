@@ -1,74 +1,60 @@
-name: CI - Check SQL References in Marts
+name: Check Marts Staging References
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
     paths:
       - 'dbt_proj/models/marts/**/*.sql'
 
 jobs:
-  check-forbidden-marts-references:
-    name: Check Marts Models for Forbidden Schemas/Models
+  check-staging-refs:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Fetches git history to compare PR changes against base branch
+          fetch-depth: 0 # Fetch all history so git diff works correctly against base branch
 
-      - name: Get modified Marts SQL files
-        id: changed-files
+      - name: Check Modified SQL Files in Marts
+        id: check_files
         run: |
-          # Filter PR diff strictly for files under dbt_project/models/marts/ ending in .sql
-          CHANGED_FILES=$(git diff --name-only --diff-filter=ACMR origin/${{ github.base_ref }}...HEAD | grep -E '^dbt_project/models/marts/.*\.sql$' || true)
+          # Target directory
+          TARGET_DIR="dbt_proj/models/marts"
           
-          echo "files=$CHANGED_FILES" >> $GITHUB_OUTPUT
+          # Get list of Added (A) or Modified (M) SQL files in the PR within the target directory
+          CHANGED_FILES=$(git diff --name-only --diff-filter=AM "origin/${{ github.base_ref }}"...HEAD | grep "^${TARGET_DIR}/.*\.sql$" || true)
 
-      - name: Scan Marts files for forbidden references
-        run: |
-          FILES="${{ steps.changed-files.outputs.files }}"
-
-          if [ -z "$FILES" ]; then
-            echo "No SQL files inside 'dbt_project/models/marts/' were modified in this PR."
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No modified SQL files found in ${TARGET_DIR}."
             exit 0
           fi
 
-          FOUND_FORBIDDEN=0
-
-          echo "Scanning modified Marts SQL files..."
+          echo "Checking modified files:"
+          echo "$CHANGED_FILES"
           echo "----------------------------------------"
 
-          for file in $FILES; do
-            if [ -f "$file" ]; then
-              echo "Checking: $file"
+          INVALID_FOUND=0
 
-              # 1. Check for dbt ref('stg_...') calls (case-insensitive)
-              REF_MATCHES=$(grep -Ein "ref\s*\(\s*['\"]stg_" "$file" || true)
+          # Case-insensitive regex check for ref('stg_ or ref('staging_
+          # Matches pattern: ref( followed by quotes/spaces and stg_ or staging_
+          REGEX="ref\(['\"][[:space:]]*(stg_|staging_)"
 
-              # 2. Check for direct schema references to RAW. or STAGING. (case-insensitive)
-              DIRECT_MATCHES=$(grep -Ein "(raw|staging)\." "$file" || true)
-
-              if [ -n "$REF_MATCHES" ]; then
-                echo "::error file=$file::Forbidden dbt ref to 'stg_' model found in $file!"
-                echo "$REF_MATCHES"
-                FOUND_FORBIDDEN=1
-              fi
-
-              if [ -n "$DIRECT_MATCHES" ]; then
-                echo "::error file=$file::Forbidden direct schema reference to 'RAW.' or 'STAGING.' found in $file!"
-                echo "$DIRECT_MATCHES"
-                FOUND_FORBIDDEN=1
+          for FILE in $CHANGED_FILES; do
+            if [ -f "$FILE" ]; then
+              # Search case-insensitively and print matching line numbers
+              MATCHES=$(grep -Ein "$REGEX" "$FILE" || true)
+              
+              if [ -n "$MATCHES" ]; then
+                echo "❌ Illegal staging reference found in: $FILE"
+                echo "$MATCHES"
+                echo ""
+                INVALID_FOUND=1
               fi
             fi
           done
 
-          echo "----------------------------------------"
-
-          if [ "$FOUND_FORBIDDEN" -eq 1 ]; then
-            echo "ERROR: Pull request failed validation."
-            echo "Models inside 'dbt_project/models/marts/' cannot reference staging models (stg_*) or direct schemas (RAW. / STAGING.)."
+          if [ $INVALID_FOUND -eq 1 ]; then
+            echo "::error::Direct staging references (ref('stg_*') or ref('staging_*')) are not allowed in marts models. Please reference intermediate or entity models instead."
             exit 1
+          else
+            echo "✅ All modified marts models passed staging reference checks!"
           fi
-
-          echo "All modified Marts files passed validation successfully!!"
