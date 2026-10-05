@@ -5,7 +5,7 @@ with customer_orders as (
         max(ordered_at) as most_recent_order_date,
         count(distinct order_id) as total_order,
         sum(net_revenue) as lifetime_value
-    from {{ ref('stg_fct_orders') }}
+    from staging_debt_collection.order
     group by 1
 )
 
