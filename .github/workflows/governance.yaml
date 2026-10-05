@@ -34,14 +34,16 @@ jobs:
 
           INVALID_FOUND=0
 
-          # Case-insensitive regex check for ref('stg_ or ref('staging_
-          # Matches pattern: ref( followed by quotes/spaces and stg_ or staging_
-          REGEX="ref\(['\"][[:space:]]*(stg_|staging_)"
+          # Case-insensitive Extended Regex (-E):
+          # 1) ref('stg_...', ref('staging_...', or ref('staging...)
+          # 2) Direct table references: FROM staging_..., JOIN staging_..., FROM stg_..., JOIN stg_...
+          # 3) Standalone staging table names after FROM/JOIN: FROM staging, JOIN staging
+          REGEX="(ref\(['\"][[:space:]]*(stg_|staging_|staging(['\"_[:alnum:]]|$)))|((from|join)[[:space:]]+([[:alnum:]_]+\.)*(stg_|staging_|staging([[:space:]\"';]|$)|\"stg_|\"staging_))"
 
           for FILE in $CHANGED_FILES; do
             if [ -f "$FILE" ]; then
-              # Search case-insensitively and print matching line numbers
-              MATCHES=$(grep -Ein "$REGEX" "$FILE" || true)
+              # Search case-insensitively using Extended Regular Expressions (-E)
+              MATCHES=$(grep -Ein -E "$REGEX" "$FILE" || true)
               
               if [ -n "$MATCHES" ]; then
                 echo "❌ Illegal staging reference found in: $FILE"
@@ -53,7 +55,7 @@ jobs:
           done
 
           if [ $INVALID_FOUND -eq 1 ]; then
-            echo "::error::Direct staging references (ref('stg_*') or ref('staging_*') or staging or STAGING) are not allowed in marts models. Please reference intermediate or entity models instead."
+            echo "::error::Direct staging references (ref() or direct 'FROM/JOIN staging_' table references) are not allowed in marts models. Please reference intermediate or entity models instead."
             exit 1
           else
             echo "✅ All modified marts models passed staging reference checks!"
