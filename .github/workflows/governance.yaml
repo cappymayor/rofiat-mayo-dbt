@@ -1,43 +1,74 @@
-name: Data Governance - Block Raw Access
+name: CI - Check SQL References in Marts
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
-      - '**.sql'
+      - 'dbt_project/models/marts/**/*.sql'
 
 jobs:
-  check-raw-layer:
+  check-forbidden-marts-references:
+    name: Check Marts Models for Forbidden Schemas/Models
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout Code
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # Fetches git history to compare PR changes against base branch
 
-      - name: Scan for Raw References
+      - name: Get modified Marts SQL files
+        id: changed-files
         run: |
-          # Get all added or modified SQL files in this PR
-          CHANGED_FILES=$(git diff --name-only --diff-filter=AM origin/${{ github.base_ref }}...HEAD | grep '\.sql$' || true)
+          # Filter PR diff strictly for files under dbt_project/models/marts/ ending in .sql
+          CHANGED_FILES=$(git diff --name-only --diff-filter=ACMR origin/${{ github.base_ref }}...HEAD | grep -E '^dbt_project/models/marts/.*\.sql$' || true)
+          
+          echo "files=$CHANGED_FILES" >> $GITHUB_OUTPUT
 
-          if [ -z "$CHANGED_FILES" ]; then
-            echo "No SQL files modified in this PR."
+      - name: Scan Marts files for forbidden references
+        run: |
+          FILES="${{ steps.changed-files.outputs.files }}"
+
+          if [ -z "$FILES" ]; then
+            echo "No SQL files inside 'dbt_project/models/marts/' were modified in this PR."
             exit 0
           fi
 
-          echo "Scanning changed SQL files..."
-          
-          # Regex checks for:
-          # 1. Direct table calls: raw.orders
-          # 2. dbt source calls: source('raw', ... or source("raw", ...
-          ERRORS=$(grep -iEn "raw\.|source\(['\"]raw['\"]" $CHANGED_FILES || true)
+          FOUND_FORBIDDEN=0
 
-          if [ -n "$ERRORS" ]; then
-            echo "❌ ERROR: PR contains forbidden references to the RAW layer:"
-            echo "$ERRORS"
-            echo ""
-            echo "Please remove references to raw tables and use staging/intermediate models instead."
+          echo "Scanning modified Marts SQL files..."
+          echo "----------------------------------------"
+
+          for file in $FILES; do
+            if [ -f "$file" ]; then
+              echo "Checking: $file"
+
+              # 1. Check for dbt ref('stg_...') calls (case-insensitive)
+              REF_MATCHES=$(grep -Ein "ref\s*\(\s*['\"]stg_" "$file" || true)
+
+              # 2. Check for direct schema references to RAW. or STAGING. (case-insensitive)
+              DIRECT_MATCHES=$(grep -Ein "(raw|staging)\." "$file" || true)
+
+              if [ -n "$REF_MATCHES" ]; then
+                echo "::error file=$file::Forbidden dbt ref to 'stg_' model found in $file!"
+                echo "$REF_MATCHES"
+                FOUND_FORBIDDEN=1
+              fi
+
+              if [ -n "$DIRECT_MATCHES" ]; then
+                echo "::error file=$file::Forbidden direct schema reference to 'RAW.' or 'STAGING.' found in $file!"
+                echo "$DIRECT_MATCHES"
+                FOUND_FORBIDDEN=1
+              fi
+            fi
+          done
+
+          echo "----------------------------------------"
+
+          if [ "$FOUND_FORBIDDEN" -eq 1 ]; then
+            echo "ERROR: Pull request failed validation."
+            echo "Models inside 'dbt_project/models/marts/' cannot reference staging models (stg_*) or direct schemas (RAW. / STAGING.)."
             exit 1
-          else
-            echo "✅ Pass: No RAW layer references found."
           fi
+
+          echo "All modified Marts files passed validation successfully!!"
