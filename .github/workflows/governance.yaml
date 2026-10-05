@@ -53,7 +53,7 @@ jobs:
           done
 
           if [ $INVALID_FOUND -eq 1 ]; then
-            echo "::error::Direct staging references (ref('stg_*') or ref('staging_*')) are not allowed in marts models. Please reference intermediate or entity models instead."
+            echo "::error::Direct staging references (ref('stg_*') or ref('staging_*') or staging or STAGING) are not allowed in marts models. Please reference intermediate or entity models instead."
             exit 1
           else
             echo "✅ All modified marts models passed staging reference checks!"
