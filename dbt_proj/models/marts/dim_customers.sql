@@ -5,7 +5,7 @@ with customer_orders as (
         max(ordered_at) as most_recent_order_date,
         count(distinct order_id) as total_orders,
         sum(net_revenue) as lifetime_values
-    from {{ ref('staging_fct_orders') }}
+    from staging_new.order
     group by 1
 )
 
@@ -23,5 +23,5 @@ select
         when co.total_orders > 0 then true 
         else false 
     end as is_active_customer
-from {{ ref('stg_customers') }} c
+from {{ ref('customers') }} c
 left join customer_orders co on c.customer_id = co.customer_id
